@@ -1,6 +1,0 @@
-{
-  "name": {
-    "property": "alias-missing-target"
-  },
-  "$ref": "tokens/nonexistent-token.json"
-}

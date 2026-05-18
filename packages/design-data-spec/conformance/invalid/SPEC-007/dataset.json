@@ -1,9 +1,0 @@
-{
-  "tokens": [
-    {
-      "name": "button-hover-border-color",
-      "value": "#0265dc",
-      "component": "button"
-    }
-  ]
-}

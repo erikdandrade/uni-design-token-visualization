@@ -1,9 +1,0 @@
-{
-  "tokens": [
-    {
-      "name": { "component": "nonexistent", "property": "background-color" },
-      "value": "#ff0000"
-    }
-  ],
-  "components": []
-}

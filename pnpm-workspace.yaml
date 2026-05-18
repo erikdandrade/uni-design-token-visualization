@@ -1,5 +1,2 @@
-packages:
-  - "packages/*"
-  - "docs/*"
-  - "tools/*"
-  - "sdk/cli"
+allowBuilds:
+  esbuild: true

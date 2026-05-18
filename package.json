@@ -1,48 +1,48 @@
 {
-  "name": "@adobe/spectrum-dna",
-  "description": "",
+  "name": "uni-design-token-visualization",
+  "private": true,
   "type": "module",
-  "scripts": {
-    "moon": "moon",
-    "pre-commit": "lint-staged",
-    "prepare": "husky || true",
-    "release": "changeset publish",
-    "version": "changeset version && moon run :version",
-    "changeset-lint": "node tools/changeset-linter/src/cli.js"
-  },
+  "version": "0.0.1",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/adobe/spectrum-design-data.git"
+    "url": "git+https://github.com/erikdandrade/uni-design-token-visualization.git"
   },
-  "author": "Garth Braithwaite <garthdb@gmail.com> (http://garthdb.com/)",
-  "contributors": [
-    "Aaron Brownlee <brownlee@adobe.com> (https://misterbrownlee.com)"
-  ],
   "license": "Apache-2.0",
-  "bugs": {
-    "url": "https://github.com/adobe/spectrum-design-data/issues"
-  },
-  "homepage": "https://github.com/adobe/spectrum-design-data#readme",
-  "devDependencies": {
-    "@action-validator/core": "^0.6.0",
-    "@changesets/changelog-github": "^0.5.1",
-    "@changesets/cli": "^2.29.2",
-    "@commitlint/cli": "^19.8.0",
-    "@commitlint/config-conventional": "^19.8.0",
-    "@moonrepo/cli": "^1.39.1",
-    "ava": "^6.2.0",
-    "glob": "^11.0.2",
-    "husky": "^9.1.7",
-    "lint-staged": "^15.5.1",
-    "prettier": "^3.5.3",
-    "remark": "^15.0.1",
-    "remark-cli": "^12.0.1",
-    "remark-frontmatter": "^5.0.0",
-    "remark-gfm": "^4.0.1",
-    "remark-github": "^12.0.0"
-  },
+  "packageManager": "pnpm@10.17.1",
   "engines": {
-    "node": "20.17.0"
+    "node": ">=20.12"
   },
-  "packageManager": "pnpm@10.17.1"
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.8"
+  },
+  "dependencies": {
+    "@spectrum-web-components/alert-banner": "^0.49.0",
+    "@spectrum-web-components/action-button": "^0.49.0",
+    "@spectrum-web-components/button": "^0.49.0",
+    "@spectrum-web-components/button-group": "^0.49.0",
+    "@spectrum-web-components/field-group": "^0.49.0",
+    "@spectrum-web-components/field-label": "^0.49.0",
+    "@spectrum-web-components/link": "^0.49.0",
+    "@spectrum-web-components/overlay": "^0.49.0",
+    "@spectrum-web-components/popover": "^0.49.0",
+    "@spectrum-web-components/search": "^0.49.0",
+    "@spectrum-web-components/slider": "^0.49.0",
+    "@spectrum-web-components/switch": "^0.49.0",
+    "@spectrum-web-components/textfield": "^0.49.0",
+    "@spectrum-web-components/theme": "^0.49.0",
+    "@spectrum-web-components/toast": "^0.49.0",
+    "@spectrum-web-components/tooltip": "^0.49.0",
+    "lit": "^3.2.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  }
 }
