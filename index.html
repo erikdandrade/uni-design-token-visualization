@@ -2,19 +2,44 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Unifonic Design Token Visualization</title>
-    <script type="module" src="/src/components/stvt-app.ts"></script>
-    <style>
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-      }
-    </style>
+    <title>Unifonic Component ↔ Token Graph</title>
+    <link rel="stylesheet" href="./src/styles.css" />
   </head>
   <body>
-    <stvt-app></stvt-app>
+    <div id="app">
+      <header>
+        <h1>Unifonic Token Graph</h1>
+        <div id="mode-switch" class="segmented" role="radiogroup" aria-label="View mode">
+          <button type="button" data-mode="comp-alias-raw" class="active" role="radio" aria-checked="true">Component → Alias → Raw</button>
+          <button type="button" data-mode="alias-comp" role="radio" aria-checked="false">Alias → Component</button>
+          <button type="button" data-mode="raw-alias" role="radio" aria-checked="false">Raw → Alias</button>
+        </div>
+        <input id="search" type="search" placeholder="Filter…" />
+        <div id="binding-filter" class="segmented" role="radiogroup" aria-label="Binding filter">
+          <button type="button" data-binding="all" class="active" role="radio" aria-checked="true">All</button>
+          <button type="button" data-binding="with" role="radio" aria-checked="false">With bindings</button>
+          <button type="button" data-binding="without" role="radio" aria-checked="false">No bindings</button>
+        </div>
+        <button id="reset">Clear</button>
+        <div class="zoom-controls" aria-label="Zoom">
+          <button id="zoom-out" type="button" title="Zoom out">−</button>
+          <button id="zoom-level" type="button" title="Reset view">100%</button>
+          <button id="zoom-in" type="button" title="Zoom in">+</button>
+        </div>
+        <span id="stats"></span>
+      </header>
+      <div class="lane-headers">
+        <div class="lane-header" id="lane-1-header">Components</div>
+        <div class="lane-header" id="lane-2-header">Aliases (tokens used)</div>
+        <div class="lane-header" id="lane-3-header">Raw values</div>
+      </div>
+      <main id="cy"></main>
+      <aside id="details">
+        <h2>Details</h2>
+        <div id="details-body"><em>Click a component to expand its aliases.</em></div>
+      </aside>
+    </div>
+    <script type="module" src="./src/main.js"></script>
   </body>
 </html>
