@@ -108,8 +108,14 @@ const components = [];
 const decoratorRegex = /@Component\s*\(\s*\{([\s\S]*?)\}\s*\)/m;
 const selectorRegex = /selector\s*:\s*['"`]([^'"`]+)['"`]/;
 const styleUrlsRegex = /styleUrls\s*:\s*\[([^\]]*)\]/;
+const templateUrlRegex = /templateUrl\s*:\s*['"`]([^'"`]+)['"`]/;
+const inlineTemplateRegex = /template\s*:\s*([`'"])([\s\S]*?)\1/;
 const classNameRegex = /export\s+class\s+([A-Za-z0-9_]+)/;
 const urlEntryRegex = /['"`]([^'"`]+)['"`]/g;
+
+function stripHtmlComments(html) {
+  return html.replace(/<!--[\s\S]*?-->/g, '');
+}
 
 function displayNameFromSelector(sel) {
   return sel
@@ -210,13 +216,51 @@ for (const tsFile of componentTs) {
     bindings.push(b);
   }
 
+  // Capture template text (external file or inline) for later dependency scan.
+  let templateText = '';
+  const templateUrlMatch = decoratorBody.match(templateUrlRegex);
+  if (templateUrlMatch) {
+    const abs = resolve(dirname(tsFile), templateUrlMatch[1]);
+    if (existsSync(abs)) templateText = readFileSync(abs, 'utf8');
+  } else {
+    const inlineMatch = decoratorBody.match(inlineTemplateRegex);
+    if (inlineMatch) templateText = inlineMatch[2];
+  }
+
   components.push({
     name: selector,
     displayName: displayNameFromSelector(selector),
     className,
     path: relative(SOURCE, tsFile),
     tokenBindings: bindings,
+    _templateText: templateText, // stripped before write
   });
+}
+
+// --- Component-to-component edges (template tag references) ---
+const selectorSet = new Set(components.map(c => c.name));
+const tagRegex = /<([a-z][a-z0-9-]*)/gi;
+const componentEdges = [];
+const seenEdges = new Set();
+
+for (const c of components) {
+  const html = stripHtmlComments(c._templateText || '');
+  const refs = new Set();
+  tagRegex.lastIndex = 0;
+  let m;
+  while ((m = tagRegex.exec(html))) {
+    const tag = m[1].toLowerCase();
+    if (tag === c.name) continue; // drop self-edges
+    if (selectorSet.has(tag)) refs.add(tag);
+  }
+  c.componentDependencies = [...refs].sort();
+  for (const to of refs) {
+    const key = `${c.name}|${to}`;
+    if (seenEdges.has(key)) continue;
+    seenEdges.add(key);
+    componentEdges.push({ from: c.name, to });
+  }
+  delete c._templateText;
 }
 
 const dataset = {
@@ -224,6 +268,7 @@ const dataset = {
   tokens: [...tokensByName.values()].sort((a, b) => a.name.localeCompare(b.name)),
   components: components.sort((a, b) => a.name.localeCompare(b.name)),
   aliasEdges,
+  componentEdges,
 };
 
 writeFileSync(OUT, JSON.stringify(dataset, null, 2));
@@ -231,9 +276,11 @@ writeFileSync(OUT, JSON.stringify(dataset, null, 2));
 const bindingCount = components.reduce((n, c) => n + c.tokenBindings.length, 0);
 const usedTokens = new Set();
 for (const c of components) for (const b of c.tokenBindings) usedTokens.add(b.token);
+const compsWithDeps = components.filter(c => c.componentDependencies.length > 0).length;
 
 console.log(`Wrote ${OUT}`);
 console.log(`  tokens: ${dataset.tokens.length} (${usedTokens.size} referenced, ${dataset.tokens.length - usedTokens.size} orphan)`);
-console.log(`  components: ${dataset.components.length}`);
+console.log(`  components: ${dataset.components.length} (${compsWithDeps} with template deps)`);
 console.log(`  bindings: ${bindingCount}`);
 console.log(`  alias edges: ${aliasEdges.length}`);
+console.log(`  component edges: ${componentEdges.length}`);

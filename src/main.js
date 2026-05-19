@@ -61,6 +61,33 @@ for (const c of components) {
   }
 }
 
+// --- Component-to-component adjacency (template tag references) ---
+const componentDirectDeps = new Map();
+const componentDirectUsers = new Map();
+for (const c of components) {
+  componentDirectDeps.set(c.name, new Set(c.componentDependencies || []));
+  componentDirectUsers.set(c.name, new Set());
+}
+for (const c of components) {
+  for (const dep of c.componentDependencies || []) {
+    if (componentDirectUsers.has(dep)) componentDirectUsers.get(dep).add(c.name);
+  }
+}
+
+// BFS reachable set, excluding the starting node (handles cycles via visited set).
+function reachableComponents(start, adjacency) {
+  const visited = new Set();
+  const queue = [start];
+  while (queue.length) {
+    const n = queue.shift();
+    if (visited.has(n)) continue;
+    visited.add(n);
+    for (const next of adjacency.get(n) || []) queue.push(next);
+  }
+  visited.delete(start);
+  return visited;
+}
+
 // --- Mode definitions ---
 const MODES = {
   'comp-alias-raw': {
@@ -77,6 +104,41 @@ const MODES = {
       for (const a of aliases) for (const t of resolveTerminals(a)) if (t !== a) terminals.add(t);
       return { col2: aliases, col3: [...terminals] };
     },
+    col2to3: (name) => [...resolveTerminals(name)],
+  },
+  'comp-uses': {
+    headers: ['Components', 'Components used (direct)', 'Used transitively'],
+    pivotItems: () => components.map((c) => c.name),
+    pivotKind: 'component',
+    col2Kind: 'component',
+    col3Kind: 'component',
+    showBindingFilter: false,
+    pivotPlaceholder: 'Filter components…',
+    expand(name) {
+      const direct = [...(componentDirectDeps.get(name) || new Set())];
+      const directSet = new Set(direct);
+      const all = reachableComponents(name, componentDirectDeps);
+      const transitive = [...all].filter((n) => !directSet.has(n));
+      return { col2: direct.sort(), col3: transitive.sort() };
+    },
+    col2to3: (name) => [...(componentDirectDeps.get(name) || new Set())],
+  },
+  'comp-used-by': {
+    headers: ['Components', 'Used by (direct)', 'Used by (transitive)'],
+    pivotItems: () => components.map((c) => c.name),
+    pivotKind: 'component',
+    col2Kind: 'component',
+    col3Kind: 'component',
+    showBindingFilter: false,
+    pivotPlaceholder: 'Filter components…',
+    expand(name) {
+      const direct = [...(componentDirectUsers.get(name) || new Set())];
+      const directSet = new Set(direct);
+      const all = reachableComponents(name, componentDirectUsers);
+      const transitive = [...all].filter((n) => !directSet.has(n));
+      return { col2: direct.sort(), col3: transitive.sort() };
+    },
+    col2to3: (name) => [...(componentDirectUsers.get(name) || new Set())],
   },
   'alias-comp': {
     headers: ['Aliases (tokens)', 'Components using', ''],
@@ -313,17 +375,17 @@ function rerender() {
       }
     }
 
-    // Edges: col2 -> col3 (only in modes that have col3; mode 1 = alias→terminal)
-    if (M.col3Kind && mode === 'comp-alias-raw') {
-      for (const aliasName of col2List) {
-        for (const term of resolveTerminals(aliasName)) {
-          if (term === aliasName) continue;
-          if (!col3Set.has(term)) continue;
+    // Edges: col2 -> col3 (modes that declare a col2to3 mapping)
+    if (M.col3Kind && typeof M.col2to3 === 'function') {
+      for (const c2Name of col2List) {
+        for (const target of M.col2to3(c2Name)) {
+          if (target === c2Name) continue;
+          if (!col3Set.has(target)) continue;
           cy.add({
             data: {
               id: `e${edgeId++}`,
-              source: nodeIdFor(M.col2Kind, aliasName),
-              target: nodeIdFor(M.col3Kind, term),
+              source: nodeIdFor(M.col2Kind, c2Name),
+              target: nodeIdFor(M.col3Kind, target),
             },
           });
         }
@@ -460,6 +522,8 @@ function detailsHtml(kind, name) {
   if (kind === 'component') {
     const c = components.find((x) => x.name === name);
     if (!c) return '';
+    const deps = [...(componentDirectDeps.get(c.name) || new Set())].sort();
+    const users = [...(componentDirectUsers.get(c.name) || new Set())].sort();
     return `
       <div class="section">
         <dl class="kv">
@@ -467,6 +531,10 @@ function detailsHtml(kind, name) {
           <dt>Class</dt><dd><code>${escapeHtml(c.className)}</code></dd>
           <dt>Path</dt><dd><code>${escapeHtml(c.path)}</code></dd>
         </dl>
+        <h2>Renders (${deps.length})</h2>
+        ${deps.map((d) => `<div>${escapeHtml(d)}</div>`).join('') || '<em>No component dependencies.</em>'}
+        <h2>Used by (${users.length})</h2>
+        ${users.map((u) => `<div>${escapeHtml(u)}</div>`).join('') || '<em>No consumers.</em>'}
         <h2>Bindings (${c.tokenBindings.length})</h2>
         ${
           c.tokenBindings
