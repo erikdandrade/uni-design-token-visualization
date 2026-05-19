@@ -201,6 +201,10 @@ const cy = cytoscape({
       },
     },
     {
+      selector: 'node.dimmed',
+      style: { opacity: 0.35 },
+    },
+    {
       selector: 'edge',
       style: {
         'curve-style': 'unbundled-bezier',
@@ -231,20 +235,26 @@ function leftAlignMargin(label, nodeW) {
 
 for (const c of components) {
   const label = c.name;
-  cy.add({
-    data: {
-      id: `c:${c.name}`,
-      label,
-      type: 'component',
-      itemName: c.name,
-      bg: '#1e222c',
-      border: '#2a2f3a',
-      w: NODE_W.component,
-      textMarginX: leftAlignMargin(label, NODE_W.component),
-      ref: c,
-    },
-    grabbable: false,
-  });
+  // Three lane-specific instances per component so the same component name can
+  // appear in col 1 (full opacity, possibly dimmed) AND col 2/3 simultaneously
+  // in the comp-uses / comp-used-by modes.
+  for (const lane of [1, 2, 3]) {
+    cy.add({
+      data: {
+        id: `c${lane}:${c.name}`,
+        label,
+        type: 'component',
+        lane,
+        itemName: c.name,
+        bg: '#1e222c',
+        border: '#2a2f3a',
+        w: NODE_W.component,
+        textMarginX: leftAlignMargin(label, NODE_W.component),
+        ref: c,
+      },
+      grabbable: false,
+    });
+  }
 }
 for (const t of allTokens) {
   const label = formatTokenLabel(t);
@@ -269,8 +279,8 @@ function formatTokenLabel(t) {
   return `${t.name}   ${v}`;
 }
 
-function nodeIdFor(kind, name) {
-  return kind === 'component' ? `c:${name}` : `t:${name}`;
+function nodeIdFor(kind, name, lane = 1) {
+  return kind === 'component' ? `c${lane}:${name}` : `t:${name}`;
 }
 
 // --- State ---
@@ -301,36 +311,16 @@ function rerender() {
   cy.batch(() => {
     cy.edges().remove();
     cy.nodes().style('display', 'none');
-    // Component nodes: keep .selected only when they are pivots and selected
     cy.nodes('node.selected').removeClass('selected');
+    cy.nodes('node.dimmed').removeClass('dimmed');
 
-    // Column 1: visible pivot items
     const pivots = visiblePivotItems();
-    pivots.forEach((name, i) => {
-      const id = nodeIdFor(M.pivotKind, name);
-      const node = cy.getElementById(id);
-      node.style('display', 'element');
-      node.position({ x: COL_X[1], y: i * ROW_H });
-      if (selected.has(name)) node.addClass('selected');
-    });
 
-    if (selected.size === 0) return;
-
-    // Anchor Y from topmost selected pivot
-    let anchorY = Infinity;
-    for (const name of selected) {
-      const n = cy.getElementById(nodeIdFor(M.pivotKind, name));
-      if (n.length && n.style('display') !== 'none') anchorY = Math.min(anchorY, n.position('y'));
-    }
-    if (!isFinite(anchorY)) anchorY = 0;
-
-    // Compute col2 union and col3 union
+    // --- First, compute col2 / col3 BEFORE laying out col 1, so we know which
+    //     col 1 entries need the "dimmed" treatment when the kinds collide.
     const col2Sources = new Map(); // col2 item -> Set of pivots referencing it
     const col3Set = new Set();
     for (const sName of selected) {
-      // Skip pivots that are filtered out
-      const n = cy.getElementById(nodeIdFor(M.pivotKind, sName));
-      if (!n.length || n.style('display') === 'none') continue;
       const { col2, col3 } = M.expand(sName);
       for (const x of col2) {
         if (!col2Sources.has(x)) col2Sources.set(x, new Set());
@@ -338,28 +328,56 @@ function rerender() {
       }
       for (const x of col3 || []) col3Set.add(x);
     }
-
-    // Position col2
     const col2List = [...col2Sources.keys()].sort();
+
+    // Names that should appear dimmed in col 1 — only meaningful when col 1
+    // shares its kind with col 2 or col 3 (i.e. the component-to-component
+    // modes). Token modes never collide because col 1 = component, col 2/3 = token.
+    const dimmedInCol1 = new Set();
+    if (M.pivotKind === M.col2Kind || M.pivotKind === M.col3Kind) {
+      for (const name of col2List) if (!selected.has(name)) dimmedInCol1.add(name);
+      for (const name of col3Set) if (!selected.has(name)) dimmedInCol1.add(name);
+    }
+
+    // Column 1: visible pivot items (lane = 1)
+    pivots.forEach((name, i) => {
+      const node = cy.getElementById(nodeIdFor(M.pivotKind, name, 1));
+      node.style('display', 'element');
+      node.position({ x: COL_X[1], y: i * ROW_H });
+      if (selected.has(name)) node.addClass('selected');
+      else if (dimmedInCol1.has(name)) node.addClass('dimmed');
+    });
+
+    if (selected.size === 0) return;
+
+    // Anchor Y from topmost selected pivot
+    let anchorY = Infinity;
+    for (const name of selected) {
+      const n = cy.getElementById(nodeIdFor(M.pivotKind, name, 1));
+      if (n.length && n.style('display') !== 'none') anchorY = Math.min(anchorY, n.position('y'));
+    }
+    if (!isFinite(anchorY)) anchorY = 0;
+
+    // Position col2 (lane = 2)
     col2List.forEach((name, i) => {
-      const node = cy.getElementById(nodeIdFor(M.col2Kind, name));
+      const node = cy.getElementById(nodeIdFor(M.col2Kind, name, 2));
       if (!node.length) return;
       node.style('display', 'element');
       node.position({ x: COL_X[2], y: anchorY + i * ROW_H });
     });
 
-    // Position col3
+    // Position col3 (lane = 3)
     if (M.col3Kind) {
       const col3List = [...col3Set].sort();
       col3List.forEach((name, i) => {
-        const node = cy.getElementById(nodeIdFor(M.col3Kind, name));
+        const node = cy.getElementById(nodeIdFor(M.col3Kind, name, 3));
         if (!node.length) return;
         node.style('display', 'element');
         node.position({ x: COL_X[3], y: anchorY + i * ROW_H });
       });
     }
 
-    // Edges: pivot -> col2
+    // Edges: pivot (lane 1) -> col2 (lane 2)
     let edgeId = 0;
     for (const [name, sources] of col2Sources.entries()) {
       const shared = sources.size > 1;
@@ -367,15 +385,15 @@ function rerender() {
         cy.add({
           data: {
             id: `e${edgeId++}`,
-            source: nodeIdFor(M.pivotKind, sName),
-            target: nodeIdFor(M.col2Kind, name),
+            source: nodeIdFor(M.pivotKind, sName, 1),
+            target: nodeIdFor(M.col2Kind, name, 2),
           },
           classes: shared ? 'shared' : '',
         });
       }
     }
 
-    // Edges: col2 -> col3 (modes that declare a col2to3 mapping)
+    // Edges: col2 (lane 2) -> col3 (lane 3)
     if (M.col3Kind && typeof M.col2to3 === 'function') {
       for (const c2Name of col2List) {
         for (const target of M.col2to3(c2Name)) {
@@ -384,8 +402,8 @@ function rerender() {
           cy.add({
             data: {
               id: `e${edgeId++}`,
-              source: nodeIdFor(M.col2Kind, c2Name),
-              target: nodeIdFor(M.col3Kind, target),
+              source: nodeIdFor(M.col2Kind, c2Name, 2),
+              target: nodeIdFor(M.col3Kind, target, 3),
             },
           });
         }
