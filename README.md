@@ -1,9 +1,8 @@
 # Unifonic Component ↔ Token Graph
 
 Visualizes which SCSS tokens each Angular component in `unifonic-spa-common`
-consumes, and the reverse (which components reference a given token). Inspired
-by Adobe Spectrum's `s2-visualizer`, but tailored to Unifonic's stack
-(Angular + SCSS variables + `styleUrls`).
+consumes, and the reverse (which components reference a given token).
+Tailored to Unifonic's stack (Angular + SCSS variables + `styleUrls`).
 
 ## Layout
 
